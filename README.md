@@ -1,6 +1,6 @@
-# Check-In System
+# Office Check-In System
 
-A modern, secure, and mobile-friendly attendance tracking system built with Flask.
+A modern, secure, and mobile-friendly attendance tracking system built with Flask for managing staff arrivals and departures in an office environment.
 
 ## Features
 
@@ -52,6 +52,14 @@ check-in-system/
 └── check_in_system.db # SQLite database
 ```
 
+## Requirements
+
+- Python 3.6 or higher
+- Flask
+- SQLite3 (included with Python)
+- Modern web browser with JavaScript enabled
+- Internet connection (offline mode available for basic functions)
+
 ## Installation
 
 1. Clone the repository
@@ -69,15 +77,15 @@ check-in-system/
 
 ### Default Admin Account
 The system creates a default admin account on first run:
-     - Email: admin@example.com
+- Email: admin@example.com
 - Password: Admin@123
 
 **IMPORTANT**: Change this password immediately after first login!
 
 ### Starting the Application
-   ```bash
-   python app.py
-   ```
+```bash
+python app.py
+```
 The server will start on http://127.0.0.1:5000
 
 ## Usage
@@ -129,14 +137,6 @@ The server will start on http://127.0.0.1:5000
 - Optimized database queries
 - Enhanced error handling
 - Improved form validation
-
-## Technical Requirements
-
-- Python 3.6+
-- Flask
-- SQLite3
-- Modern web browser with JavaScript enabled
-- Internet connection (offline mode available for basic functions)
 
 ## Browser Support
 

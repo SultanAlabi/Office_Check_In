@@ -1,0 +1,132 @@
+/* Custom styles for Office Check-In System */
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+}
+
+.navbar {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.card-header {
+    border-radius: 10px 10px 0 0 !important;
+    font-weight: 500;
+}
+
+.btn {
+    border-radius: 5px;
+    padding: 8px 16px;
+    font-weight: 500;
+}
+
+.btn-primary {
+    background-color: #0d6efd;
+}
+
+.btn-success {
+    background-color: #198754;
+}
+
+.btn-warning {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+.alert {
+    border-radius: 8px;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.table th {
+    background-color: #f1f3f5;
+    border-top: none;
+}
+
+.table td, .table th {
+    padding: 12px 15px;
+    vertical-align: middle;
+}
+
+.badge {
+    padding: 6px 10px;
+    font-weight: 500;
+    border-radius: 4px;
+}
+
+footer {
+    border-top: 1px solid #e9ecef;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 15px;
+    }
+    
+    .table-responsive {
+        border-radius: 8px;
+        overflow: hidden;
+    }
+}
+
+/* Animation for alerts */
+.alert {
+    animation: fadeIn 0.5s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Custom styles for check-in/out buttons */
+.btn-check-in {
+    transition: all 0.3s ease;
+}
+
+.btn-check-in:hover {
+    transform: scale(1.05);
+}
+
+/* Password toggle button styling */
+#togglePassword {
+    border-color: #ced4da;
+    background-color: #f8f9fa;
+    transition: all 0.2s ease;
+}
+
+#togglePassword:hover {
+    background-color: #e9ecef;
+}
+
+#togglePassword:focus {
+    box-shadow: none;
+    outline: none;
+}
+
+.input-group {
+    position: relative;
+}
+
+.form-text {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-top: 5px;
+}
