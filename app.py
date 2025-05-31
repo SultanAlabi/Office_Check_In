@@ -1,7 +1,19 @@
 import os
 import sqlite3
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file, jsonify
+from flask import (
+    Flask, 
+    render_template, 
+    request, 
+    redirect, 
+    url_for, 
+    flash, 
+    session, 
+    send_file, 
+    jsonify, 
+    make_response,
+    g
+)
 import io
 import qrcode
 from io import BytesIO
@@ -11,6 +23,7 @@ import json
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
+from functools import wraps
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)  # Generate a secure random secret key
@@ -148,14 +161,64 @@ def init_db():
         raise
 
 def get_db():
-    """Get database connection with error handling"""
+    """Get database connection with connection pooling"""
+    if not hasattr(g, 'sqlite_db'):
+        try:
+            g.sqlite_db = sqlite3.connect(
+                app.config['DATABASE_PATH'],
+                detect_types=sqlite3.PARSE_DECLTYPES
+            )
+            g.sqlite_db.row_factory = sqlite3.Row
+        except sqlite3.Error as e:
+            print(f"Database connection error: {str(e)}")
+            raise
+    return g.sqlite_db
+
+@app.teardown_appcontext
+def close_db(error):
+    """Close the database connection at the end of request"""
+    if hasattr(g, 'sqlite_db'):
+        try:
+            g.sqlite_db.close()
+        except Exception as e:
+            print(f"Error closing database: {str(e)}")
+
+def cache_control(*directives):
+    """Add Cache-Control header with given directives."""
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            try:
+                response = make_response(view(*args, **kwargs))
+                response.headers['Cache-Control'] = ', '.join(directives)
+                return response
+            except Exception as e:
+                print(f"Cache control error: {str(e)}")
+                return view(*args, **kwargs)
+        return wrapped
+    return decorator
+
+@app.after_request
+def add_cache_headers(response):
+    """Add cache headers to static assets"""
     try:
-        conn = sqlite3.connect(app.config['DATABASE_PATH'])
-        conn.row_factory = sqlite3.Row
-        return conn
-    except sqlite3.Error as e:
-        print(f"Database connection error: {str(e)}")
-        raise
+        if request.path.startswith('/static'):
+            response.headers['Cache-Control'] = 'public, max-age=3600'
+        return response
+    except Exception as e:
+        print(f"Error adding cache headers: {str(e)}")
+        return response
+
+# Serve static files with caching
+@app.route('/static/<path:filename>')
+@cache_control('public', 'max-age=3600')
+def serve_static(filename):
+    """Serve static files with proper MIME types and caching"""
+    try:
+        return send_file(f'static/{filename}')
+    except Exception as e:
+        print(f"Error serving static file: {str(e)}")
+        return '', 404
 
 # Routes
 @app.route('/')
