@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!-- Welcome Guide Modal -->
+<div class="modal fade" id="welcomeGuideModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">👋 Welcome to the Check-In System!</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="steps">
+                    <div class="step mb-4">
+                        <h6>📱 Easy Check-In</h6>
+                        <p>Simply click the "Check In" button when you arrive at work. Remember to check in before 9 AM!</p>
+                    </div>
+                    <div class="step mb-4">
+                        <h6>⏰ Late Check-In</h6>
+                        <p>If you check in after 9 AM, you'll see a friendly reminder that you're running late.</p>
+                    </div>
+                    <div class="step mb-4">
+                        <h6>📱 Mobile Friendly</h6>
+                        <p>Use your phone? Click "Go to Mobile Check-In" for an easier mobile experience!</p>
+                    </div>
+                    <div class="step">
+                        <h6>❓ Need Help?</h6>
+                        <p>Contact your administrator if you have any questions!</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="localStorage.setItem('welcomeShown', 'true')">Got it!</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        {% if user_role == 'admin' and late_check_ins %}
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <h5 class="alert-heading">⚠️ Late Check-ins Today</h5>
+            <ul class="mb-0">
+                {% for late_staff in late_check_ins %}
+                <li>{{ late_staff[0] }} - Checked in at {{ late_staff[1].split()[1] }}</li>
+                {% endfor %}
+            </ul>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+        
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Welcome, {{ user_name }}!</h4>
+                    <span id="current-time" class="badge bg-light text-dark"></span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0">Check-In Status</h5>
+                            </div>
+                            <div class="card-body">
+                                {% if log %}
+                                    <p class="mb-2">
+                                        <strong>Check-in Time:</strong> {{ log[1].split()[1] }}
+                                        {% if log[3] %}
+                                            <span class="badge bg-warning text-dark ms-2">Late</span>
+                                        {% endif %}
+                                    </p>
+                                    {% if log[2] %}
+                                        <p class="mb-2"><strong>Check-out Time:</strong> {{ log[2].split()[1] }}</p>
+                                    {% else %}
+                                        <form method="POST" action="{{ url_for('check_out') }}">
+                                            {% if user_role == 'admin' and staff_list %}
+                                            <div class="mb-3">
+                                                <label for="staff_id" class="form-label">Select Staff</label>
+                                                <select class="form-select" id="staff_id" name="staff_id">
+                                                    {% for staff in staff_list %}
+                                                    <option value="{{ staff[0] }}"{% if staff[0] == user_id %} selected{% endif %}>{{ staff[1] }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            {% endif %}
+                                            <button type="submit" class="btn btn-warning">Check Out</button>
+                                        </form>
+                                    {% endif %}
+                                {% else %}
+                                    <p>Not checked in today.</p>
+                                    <form method="POST" action="{{ url_for('check_in') }}">
+                                        {% if user_role == 'admin' and staff_list %}
+                                        <div class="mb-3">
+                                            <label for="staff_id" class="form-label">Select Staff</label>
+                                            <select class="form-select" id="staff_id" name="staff_id">
+                                                {% for staff in staff_list %}
+                                                <option value="{{ staff[0] }}"{% if staff[0] == user_id %} selected{% endif %}>{{ staff[1] }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        {% endif %}
+                                        <button type="submit" class="btn btn-success">Check In</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if user_role == 'admin' %}
+                        <div class="card mt-4">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0">Staff Management</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2">
+                                    <a href="{{ url_for('register') }}" class="btn btn-primary">
+                                        <i class="bi bi-person-plus"></i> Register New Staff
+                                    </a>
+                                    <a href="{{ url_for('reports') }}" class="btn btn-info text-white">
+                                        <i class="bi bi-file-text"></i> View Reports
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-success text-white">
+                                <h5 class="mb-0">Mobile Access</h5>
+                            </div>
+                            <div class="card-body text-center">
+                                <p class="lead mb-4">
+                                    <i class="bi bi-phone"></i> Using a mobile device?
+                                </p>
+                                <a href="{{ url_for('mobile_check_in') }}" class="btn btn-success btn-lg">
+                                    <i class="bi bi-arrow-right-circle"></i> Go to Mobile Check-In
+                                </a>
+                                <p class="text-muted mt-3">
+                                    Access a mobile-optimized interface for quick check-in/out
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Show welcome guide for first-time users
+        if (!localStorage.getItem('welcomeShown')) {
+            new bootstrap.Modal(document.getElementById('welcomeGuideModal')).show();
+        }
+    });
+</script>
+{% endblock %}

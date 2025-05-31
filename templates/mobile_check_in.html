@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid px-3">
+    <div class="row">
+        <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-mobile-alt"></i> Mobile Check-In
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <h5 class="mb-3">Welcome, {{ user_name }}!</h5>
+                    
+                    <!-- Status Card -->
+                    <div class="card mb-4 {% if log and not log[3] %}bg-light{% endif %}">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted">Today's Status</h6>
+                            {% if not log %}
+                                <p class="card-text">You haven't checked in yet.</p>
+                                <form action="{{ url_for('check_in') }}" method="POST" class="d-grid">
+                                    <button type="submit" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-sign-in-alt"></i> Check In
+                                    </button>
+                                </form>
+                            {% else %}
+                                <p class="card-text">
+                                    Checked in at: {{ log[2].split(' ')[1] if log[2] else 'N/A' }}
+                                    {% if log[3] %}
+                                        <br>Checked out at: {{ log[3].split(' ')[1] }}
+                                    {% endif %}
+                                </p>
+                                {% if not log[3] %}
+                                    <form action="{{ url_for('check_out') }}" method="POST" class="d-grid">
+                                        <button type="submit" class="btn btn-danger btn-lg">
+                                            <i class="fas fa-sign-out-alt"></i> Check Out
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Break Controls -->
+                    {% if log and not log[3] %}
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <h6 class="card-subtitle mb-2 text-muted">Break Controls</h6>
+                                {% if not active_break %}
+                                    <div class="quick-break-buttons mb-3">
+                                        <button class="btn btn-outline-primary quick-break-btn" data-duration="15" data-type="short">
+                                            <i class="fas fa-coffee"></i><br>15min
+                                        </button>
+                                        <button class="btn btn-outline-primary quick-break-btn" data-duration="30" data-type="regular">
+                                            <i class="fas fa-utensils"></i><br>30min
+                                        </button>
+                                        <button class="btn btn-outline-primary quick-break-btn" data-duration="60" data-type="lunch">
+                                            <i class="fas fa-hamburger"></i><br>1hour
+                                        </button>
+                                    </div>
+                                    <form action="{{ url_for('start_break') }}" method="POST" id="breakForm">
+                                        <input type="hidden" name="break_type" id="break_type" value="regular">
+                                        <div class="d-grid">
+                                            <button type="submit" class="btn btn-warning btn-lg">
+                                                <i class="fas fa-pause"></i> Start Break
+                                            </button>
+                                        </div>
+                                    </form>
+                                {% else %}
+                                    <p class="text-muted mb-3">
+                                        Break started at {{ active_break[0].split(' ')[1] if active_break[0] else 'N/A' }}
+                                    </p>
+                                    <form action="{{ url_for('end_break') }}" method="POST" class="d-grid">
+                                        <button type="submit" class="btn btn-warning btn-lg">
+                                            <i class="fas fa-play"></i> End Break
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .quick-break-buttons {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-bottom: 1rem;
+    }
+    
+    .quick-break-btn {
+        padding: 15px 10px;
+        text-align: center;
+        white-space: nowrap;
+    }
+    
+    .quick-break-btn i {
+        font-size: 1.2rem;
+        margin-bottom: 5px;
+    }
+    
+    @media (max-width: 576px) {
+        .quick-break-btn {
+            padding: 10px 5px;
+            font-size: 0.9rem;
+        }
+        
+        .quick-break-btn i {
+            font-size: 1rem;
+        }
+    }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Quick break buttons
+    document.querySelectorAll('.quick-break-btn').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const type = this.dataset.type;
+            document.getElementById('break_type').value = type;
+            document.getElementById('breakForm').submit();
+        });
+    });
+
+    // Initialize toast notifications
+    const toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        const container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    // Offline support
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js')
+            .then(function(registration) {
+                console.log('Service Worker registered');
+            })
+            .catch(function(error) {
+                console.log('Service Worker registration failed:', error);
+                showToast('Offline mode may not be available', 'warning');
+            });
+    }
+
+    // Cache form submissions when offline
+    let pendingActions = JSON.parse(localStorage.getItem('pendingActions') || '[]');
+
+    function syncPendingActions() {
+        if (!navigator.onLine) return;
+
+        const actions = [...pendingActions];
+        pendingActions = [];
+        localStorage.setItem('pendingActions', JSON.stringify(pendingActions));
+
+        actions.forEach(action => {
+            fetch(action.url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(action.data)
+            }).then(response => {
+                if (response.ok) {
+                    showToast('Synced offline action', 'success');
+                }
+            }).catch(error => {
+                console.error('Sync failed:', error);
+                pendingActions.push(action);
+                localStorage.setItem('pendingActions', JSON.stringify(pendingActions));
+                showToast('Failed to sync action', 'error');
+            });
+        });
+    }
+
+    // Listen for online status
+    window.addEventListener('online', syncPendingActions);
+
+    // Handle form submissions
+    document.querySelectorAll('form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            if (!navigator.onLine) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                const data = {};
+                formData.forEach((value, key) => data[key] = value);
+                
+                pendingActions.push({
+                    url: this.action,
+                    data: data
+                });
+                localStorage.setItem('pendingActions', JSON.stringify(pendingActions));
+                
+                showToast('Action saved and will be synced when online', 'info');
+            }
+        });
+    });
+
+    // Initialize
+    if (pendingActions.length > 0) {
+        syncPendingActions();
+    }
+</script>
+{% endblock %} 

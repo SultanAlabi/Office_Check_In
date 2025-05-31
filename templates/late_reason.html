@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid px-3">
+    <div class="row justify-content-center">
+        <div class="col-12">
+            <div class="card mt-4">
+                <div class="card-header bg-warning">
+                    <h4 class="mb-0 text-dark">Late Check-in</h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-4">
+                        We noticed you're checking in after 9:00 AM. 
+                        Please provide a reason for the late arrival:
+                    </p>
+                    <form action="{{ url_for('submit_late_reason') }}" method="POST">
+                        <div class="form-group mb-4">
+                            <textarea 
+                                name="late_reason" 
+                                class="form-control"
+                                style="font-size: 16px;" 
+                                rows="4" 
+                                placeholder="Please explain why you're late today..."
+                                required
+                                autofocus
+                            ></textarea>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                Submit & Check In
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add viewport meta tag for mobile -->
+{% block head %}
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+    /* Mobile-specific styles */
+    @media (max-width: 768px) {
+        .card {
+            border-radius: 15px;
+            margin-bottom: 1rem;
+        }
+        .card-header {
+            border-top-left-radius: 15px !important;
+            border-top-right-radius: 15px !important;
+        }
+        textarea {
+            border-radius: 10px;
+        }
+        .btn {
+            border-radius: 10px;
+            padding: 12px;
+        }
+    }
+</style>
+{% endblock %}
+{% endblock %} 

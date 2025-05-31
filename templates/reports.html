@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container-fluid">
+<div class="row">
+        <div class="col-12">
+        <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">Attendance Reports</h4>
+                    <a href="{{ url_for('export_report', date=selected_date) }}" class="btn btn-light">
+                        <i class="fas fa-download"></i> Export CSV
+                    </a>
+            </div>
+            <div class="card-body">
+                    <!-- Filters -->
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-calendar"></i>
+                                </span>
+                                <input type="date" name="date" value="{{ selected_date }}" class="form-control" id="dateFilter">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-filter"></i>
+                                </span>
+                                <select class="form-select" id="statusFilter">
+                                    <option value="all">All Status</option>
+                                    <option value="on-time">On Time</option>
+                                    <option value="late">Late</option>
+                                    <option value="on-break">On Break</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-search"></i>
+                                </span>
+                                <input type="text" class="form-control" id="searchInput" placeholder="Search staff...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Summary Cards -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body">
+                                    <h6 class="card-title">On Time</h6>
+                                    <h3 class="card-text" id="onTimeCount">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-dark">
+                                <div class="card-body">
+                                    <h6 class="card-title">Late</h6>
+                                    <h3 class="card-text" id="lateCount">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body">
+                                    <h6 class="card-title">On Break</h6>
+                                    <h3 class="card-text" id="onBreakCount">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body">
+                                    <h6 class="card-title">Total Staff</h6>
+                                    <h3 class="card-text" id="totalCount">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Reports Table -->
+                    <div class="table-responsive">
+                        <table class="table table-striped" id="reportsTable">
+                        <thead>
+                            <tr>
+                                <th>Staff Name</th>
+                                    <th>Check-in Time</th>
+                                    <th>Check-out Time</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                                    <th>Late Reason</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in logs %}
+                                <tr class="report-row" 
+                                    data-status="{{ 'late' if log[8] else 'on-time' }}{{ ' on-break' if log[5] else '' }}">
+                                <td>{{ log[1] }}</td>
+                                <td>{{ log[2] }}</td>
+                                <td>{{ log[3] if log[3] else 'Not checked out' }}</td>
+                                    <td class="duration">{{ durations[loop.index0] }}</td>
+                                    <td>
+                                        {% if log[5] %}
+                                            <span class="badge bg-warning text-dark">
+                                                On {{ log[7] }} Break
+                                                <br>
+                                                (since {{ log[6].split()[1].split('.')[0] }})
+                                            </span>
+                                        {% elif not log[3] %}
+                                            <span class="badge bg-primary">Checked In</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Completed</span>
+                                        {% endif %}
+                                        {% if log[8] %}
+                                            <br>
+                                            <span class="badge bg-danger mt-1">Late</span>
+                                        {% endif %}
+                                </td>
+                                <td>
+                                        {% if log[8] and log[9] %}
+                                            <small class="text-muted">{{ log[9] }}</small>
+                                        {% elif log[8] %}
+                                            <small class="text-danger">No reason provided</small>
+                                    {% else %}
+                                            -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                        <form action="{{ url_for('delete_log', log_id=log[0]) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this log?');">
+                                            <button type="submit" class="btn btn-sm btn-danger">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function updateCounts() {
+        const rows = document.querySelectorAll('#reportsTable tbody tr:not([style*="display: none"])');
+        document.getElementById('totalCount').textContent = rows.length;
+        
+        let onTimeCount = 0;
+        let lateCount = 0;
+        let onBreakCount = 0;
+
+        rows.forEach(row => {
+            const status = row.dataset.status;
+            if (status.includes('on-break')) onBreakCount++;
+            if (status.includes('late')) lateCount++;
+            if (status === 'on-time') onTimeCount++;
+        });
+
+        document.getElementById('onTimeCount').textContent = onTimeCount;
+        document.getElementById('lateCount').textContent = lateCount;
+        document.getElementById('onBreakCount').textContent = onBreakCount;
+    }
+
+    function filterTable() {
+        const searchText = document.getElementById('searchInput').value.toLowerCase();
+        const statusFilter = document.getElementById('statusFilter').value;
+
+        document.querySelectorAll('.report-row').forEach(row => {
+            const name = row.querySelector('td:first-child').textContent.toLowerCase();
+            const status = row.dataset.status;
+            
+            const matchesSearch = name.includes(searchText);
+            const matchesStatus = statusFilter === 'all' || status.includes(statusFilter);
+            
+            row.style.display = matchesSearch && matchesStatus ? '' : 'none';
+        });
+
+        updateCounts();
+    }
+
+    // Event listeners
+    document.getElementById('dateFilter').addEventListener('change', function() {
+        window.location.href = "{{ url_for('reports') }}?date=" + this.value;
+    });
+
+    document.getElementById('searchInput').addEventListener('input', filterTable);
+    document.getElementById('statusFilter').addEventListener('change', filterTable);
+
+    // Initialize counts on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        updateCounts();
+    });
+</script>
+{% endblock %}

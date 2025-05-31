@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <!-- Outer circle (clock face) -->
+    <circle cx="100" cy="100" r="90" fill="#ffffff" stroke="#007bff" stroke-width="8"/>
+    
+    <!-- Clock hands -->
+    <line x1="100" y1="100" x2="100" y2="40" stroke="#007bff" stroke-width="6" stroke-linecap="round"/>
+    <line x1="100" y1="100" x2="140" y2="100" stroke="#007bff" stroke-width="6" stroke-linecap="round"/>
+    
+    <!-- Center dot -->
+    <circle cx="100" cy="100" r="8" fill="#007bff"/>
+    
+    <!-- Check mark -->
+  <path d="M70 100 L90 120 L130 80" fill="none" stroke="#28a745" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg> 
