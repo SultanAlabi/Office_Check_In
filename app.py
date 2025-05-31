@@ -1299,6 +1299,28 @@ def not_found_error(error):
 def internal_error(error):
     return render_template('500.html'), 500
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Render"""
+    try:
+        # Test database connection
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT 1')
+        cursor.fetchone()
+        
+        return jsonify({
+            'status': 'healthy',
+            'database': 'connected',
+            'timestamp': datetime.now().isoformat()
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
 if __name__ == '__main__':
     # Initialize database and create admin user
     try:
@@ -1308,6 +1330,8 @@ if __name__ == '__main__':
         print(f"Startup error: {str(e)}")
         exit(1)
     
-    # Run the app
+    # Get port from environment variable
     port = int(os.environ.get('PORT', 5000))
+    
+    # Run the app with proper host and port
     app.run(host='0.0.0.0', port=port)
