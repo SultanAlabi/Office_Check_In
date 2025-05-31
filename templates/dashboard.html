@@ -37,114 +37,287 @@
     </div>
 </div>
 
-<div class="row">
-    <div class="col-md-12">
-        {% if user_role == 'admin' and late_check_ins %}
-        <div class="alert alert-warning alert-dismissible fade show" role="alert">
-            <h5 class="alert-heading">⚠️ Late Check-ins Today</h5>
-            <ul class="mb-0">
-                {% for late_staff in late_check_ins %}
-                <li>{{ late_staff[0] }} - Checked in at {{ late_staff[1].split()[1] }}</li>
-                {% endfor %}
-            </ul>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-        {% endif %}
-        
-        <div class="card mb-4">
-            <div class="card-header bg-primary text-white">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">Welcome, {{ user_name }}!</h4>
-                    <span id="current-time" class="badge bg-light text-dark"></span>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header bg-info text-white">
-                                <h5 class="mb-0">Check-In Status</h5>
-                            </div>
-                            <div class="card-body">
-                                {% if log %}
-                                    <p class="mb-2">
-                                        <strong>Check-in Time:</strong> {{ log[1].split()[1] }}
-                                        {% if log[3] %}
-                                            <span class="badge bg-warning text-dark ms-2">Late</span>
-                                        {% endif %}
-                                    </p>
-                                    {% if log[2] %}
-                                        <p class="mb-2"><strong>Check-out Time:</strong> {{ log[2].split()[1] }}</p>
-                                    {% else %}
-                                        <form method="POST" action="{{ url_for('check_out') }}">
-                                            {% if user_role == 'admin' and staff_list %}
-                                            <div class="mb-3">
-                                                <label for="staff_id" class="form-label">Select Staff</label>
-                                                <select class="form-select" id="staff_id" name="staff_id">
-                                                    {% for staff in staff_list %}
-                                                    <option value="{{ staff[0] }}"{% if staff[0] == user_id %} selected{% endif %}>{{ staff[1] }}</option>
-                                                    {% endfor %}
-                                                </select>
-                                            </div>
-                                            {% endif %}
-                                            <button type="submit" class="btn btn-warning">Check Out</button>
-                                        </form>
-                                    {% endif %}
-                                {% else %}
-                                    <p>Not checked in today.</p>
-                                    <form method="POST" action="{{ url_for('check_in') }}">
-                                        {% if user_role == 'admin' and staff_list %}
-                                        <div class="mb-3">
-                                            <label for="staff_id" class="form-label">Select Staff</label>
-                                            <select class="form-select" id="staff_id" name="staff_id">
-                                                {% for staff in staff_list %}
-                                                <option value="{{ staff[0] }}"{% if staff[0] == user_id %} selected{% endif %}>{{ staff[1] }}</option>
-                                                {% endfor %}
-                                            </select>
-                                        </div>
-                                        {% endif %}
-                                        <button type="submit" class="btn btn-success">Check In</button>
-                                    </form>
-                                {% endif %}
-                            </div>
+<div class="container mt-4">
+    <div class="row">
+        <!-- User Info & Quick Actions -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Welcome, {{ user_name }}!</h5>
+                    <p class="card-text">Today: {{ today }}</p>
+                    
+                    <!-- Quick Actions -->
+                    <div class="quick-actions mb-3">
+                        <h6 class="text-muted mb-3">Quick Actions</h6>
+                        <div class="d-grid gap-2">
+                            {% if not log %}
+                                <button class="btn btn-success" onclick="document.getElementById('checkInForm').submit();">
+                                    <i class="bi bi-box-arrow-in-right"></i> Quick Check In
+                                </button>
+                                <form id="checkInForm" method="post" action="{{ url_for('check_in') }}" style="display: none;"></form>
+                            {% elif not log.check_out_time %}
+                                <button class="btn btn-warning" onclick="document.getElementById('checkOutForm').submit();">
+                                    <i class="bi bi-box-arrow-left"></i> Quick Check Out
+                                </button>
+                                <form id="checkOutForm" method="post" action="{{ url_for('check_out') }}" style="display: none;"></form>
+                            {% endif %}
+                            
+                            <a href="{{ url_for('mobile_check_in') }}" class="btn btn-info">
+                                <i class="bi bi-phone"></i> Mobile View
+                            </a>
+                            
+                            {% if user_role == 'admin' %}
+                            <a href="{{ url_for('reports') }}" class="btn btn-primary">
+                                <i class="bi bi-file-text"></i> View Reports
+                            </a>
+                            {% endif %}
                         </div>
-
-                        {% if user_role == 'admin' %}
-                        <div class="card mt-4">
-                            <div class="card-header bg-primary text-white">
-                                <h5 class="mb-0">Staff Management</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="d-grid gap-2">
-                                    <a href="{{ url_for('register') }}" class="btn btn-primary">
-                                        <i class="bi bi-person-plus"></i> Register New Staff
-                                    </a>
-                                    <a href="{{ url_for('reports') }}" class="btn btn-info text-white">
-                                        <i class="bi bi-file-text"></i> View Reports
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                        {% endif %}
                     </div>
                     
-                    <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header bg-success text-white">
-                                <h5 class="mb-0">Mobile Access</h5>
+                    <!-- Today's Summary -->
+                    <div class="today-summary">
+                        <h6 class="text-muted mb-3">Today's Summary</h6>
+                        <div class="list-group">
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                Status
+                                <span class="badge bg-{{ 'success' if log and not log.is_late else 'warning' if log and log.is_late else 'secondary' }} rounded-pill">
+                                    {{ 'On Time' if log and not log.is_late else 'Late' if log and log.is_late else 'Not Checked In' }}
+                                </span>
                             </div>
-                            <div class="card-body text-center">
-                                <p class="lead mb-4">
-                                    <i class="bi bi-phone"></i> Using a mobile device?
-                                </p>
-                                <a href="{{ url_for('mobile_check_in') }}" class="btn btn-success btn-lg">
-                                    <i class="bi bi-arrow-right-circle"></i> Go to Mobile Check-In
-                                </a>
-                                <p class="text-muted mt-3">
-                                    Access a mobile-optimized interface for quick check-in/out
-                                </p>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                Break Time
+                                <span class="badge bg-info rounded-pill">
+                                    {{ log.total_break_time if log and log.total_break_time else 0 }} min
+                                </span>
+                            </div>
+                            {% if log and log.check_in_time %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                Work Duration
+                                <span class="badge bg-primary rounded-pill">
+                                    {% if log.check_out_time %}
+                                        {{ ((log.check_out_time - log.check_in_time).total_seconds() / 3600)|round(1) }} hrs
+                                    {% else %}
+                                        In Progress
+                                    {% endif %}
+                                </span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Check In/Out Status -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Today's Status</h5>
+                    {% if log %}
+                        <p>Check-in time: {{ log.check_in_time }}</p>
+                        {% if log.check_out_time %}
+                            <p>Check-out time: {{ log.check_out_time }}</p>
+                        {% else %}
+                            <form method="post" action="{{ url_for('check_out') }}">
+                                <button type="submit" class="btn btn-warning">Check Out</button>
+                            </form>
+                        {% endif %}
+                        {% if log.is_late %}
+                            <div class="alert alert-warning">Late Check-in</div>
+                        {% endif %}
+                    {% else %}
+                        <p>Not checked in yet</p>
+                        <form method="post" action="{{ url_for('check_in') }}">
+                            <button type="submit" class="btn btn-success">Check In</button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Break Controls -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Break Management</h5>
+                    {% if active_break %}
+                        <div class="alert alert-info">
+                            On {{ active_break.break_type }} break since {{ active_break.break_start }}
+                            <form method="post" action="{{ url_for('end_break') }}" class="mt-2">
+                                <button type="submit" class="btn btn-warning">End Break</button>
+                            </form>
+                        </div>
+                    {% else %}
+                        <form method="post" action="{{ url_for('start_break') }}">
+                            <select name="break_type" class="form-control mb-2">
+                                <option value="short">Short Break (15min)</option>
+                                <option value="regular">Regular Break (30min)</option>
+                                <option value="lunch">Lunch Break (60min)</option>
+                            </select>
+                            <button type="submit" class="btn btn-info">Start Break</button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Section -->
+    {% if user_role == 'admin' %}
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Today's Late Check-ins</h5>
+                    <ul class="list-unstyled">
+                    {% if late_check_ins %}
+                        {% for late_staff in late_check_ins %}
+                        <li class="mb-2">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-clock-history text-warning me-2"></i>
+                                <span>{{ late_staff.name }} - Checked in at {{ late_staff.check_in_time.strftime('%H:%M') }}</span>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    {% else %}
+                        <li class="text-muted">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            No late check-ins today
+                        </li>
+                    {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Staff Management</h5>
+                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-person-plus"></i> Add New Staff
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for staff in staff_list %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-person-circle me-2"></i>
+                                            {{ staff.name }}
+                                        </div>
+                                    </td>
+                                    <td>{{ staff.email }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'primary' if staff.role == 'admin' else 'secondary' }}">
+                                            {{ staff.role|title }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <form method="post" action="{{ url_for('delete_staff', staff_id=staff.id) }}" class="d-inline">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" 
+                                                        onclick="return confirm('Are you sure you want to delete {{ staff.name }}?')"
+                                                        {{ 'disabled' if staff.id == session.user_id }}>
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Attendance Statistics -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Attendance Statistics</h5>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="alert alert-info">
+                                <h6>On-Time Rate</h6>
+                                <p class="mb-0">{{ "%.1f"|format(attendance_stats.on_time_percentage) }}%</p>
                             </div>
                         </div>
+                        <div class="col-md-3">
+                            <div class="alert alert-warning">
+                                <h6>Late Rate</h6>
+                                <p class="mb-0">{{ "%.1f"|format(attendance_stats.late_percentage) }}%</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="alert alert-success">
+                                <h6>Average Break Time</h6>
+                                <p class="mb-0">{{ attendance_stats.avg_break_time }} min</p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="alert alert-primary">
+                                <h6>Total Days</h6>
+                                <p class="mb-0">{{ attendance_stats.total_days }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Logs -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Recent Attendance</h5>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Check In</th>
+                                    <th>Check Out</th>
+                                    <th>Status</th>
+                                    <th>Break Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in recent_logs %}
+                                <tr>
+                                    <td>{{ log.date }}</td>
+                                    <td>{{ log.check_in_time.strftime('%H:%M') if log.check_in_time else 'N/A' }}</td>
+                                    <td>{{ log.check_out_time.strftime('%H:%M') if log.check_out_time else 'N/A' }}</td>
+                                    <td>
+                                        {% if log.is_late %}
+                                            <span class="badge bg-warning">Late</span>
+                                        {% else %}
+                                            <span class="badge bg-success">On Time</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ log.total_break_time or 0 }} min</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

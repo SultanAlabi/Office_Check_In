@@ -1,6 +1,7 @@
 import os
 import sqlite3
 from datetime import datetime, timedelta
+import traceback
 from flask import (
     Flask, 
     render_template, 
@@ -12,10 +13,10 @@ from flask import (
     send_file, 
     jsonify, 
     make_response,
-    g
+    g,
+    send_from_directory
 )
 import io
-import qrcode
 from io import BytesIO
 import base64
 from threading import Thread
@@ -24,9 +25,30 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
 from functools import wraps
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)  # Generate a secure random secret key
+
+# Enable debug mode for development
+app.debug = True
+
+# Custom SQLite adapters and converters for Python 3.12 compatibility
+def adapt_datetime(dt):
+    return dt.isoformat()
+
+def convert_datetime(val):
+    try:
+        return datetime.fromisoformat(val.decode())
+    except (AttributeError, ValueError):
+        return None
+
+sqlite3.register_adapter(datetime, adapt_datetime)
+sqlite3.register_converter("timestamp", convert_datetime)
 
 # Configuration
 class Config:
@@ -38,7 +60,7 @@ class Config:
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
     
     # Session configuration
-    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = False  # Set to True only if using HTTPS
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
@@ -58,21 +80,6 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
-
-def generate_qr_code(staff_id):
-    """Generate QR code for staff check-in"""
-    try:
-        qr = qrcode.QRCode(version=1, box_size=10, border=5)
-        qr.add_data(f"{request.host_url}qr_check_in/{staff_id}")
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-        buffered = BytesIO()
-        img.save(buffered, format="PNG")
-        img_str = base64.b64encode(buffered.getvalue()).decode()
-        return img_str
-    except Exception as e:
-        print(f"Error generating QR code: {str(e)}")
-        return None
 
 def get_client_info():
     """Get basic client information with error handling"""
@@ -166,7 +173,7 @@ def get_db():
         try:
             g.sqlite_db = sqlite3.connect(
                 app.config['DATABASE_PATH'],
-                detect_types=sqlite3.PARSE_DECLTYPES
+                detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
             )
             g.sqlite_db.row_factory = sqlite3.Row
         except sqlite3.Error as e:
@@ -296,15 +303,12 @@ def dashboard():
     user_name = session['user_name']
     user_role = session['user_role']
     
-    # Generate QR code for the user
-    qr_code = generate_qr_code(user_id)
-    
     conn = get_db()
     cursor = conn.cursor()
     
     # Check if user has checked in today
     today = datetime.now().strftime('%Y-%m-%d')
-    cursor.execute('SELECT id, check_in_time, check_out_time, is_late FROM check_in_logs WHERE staff_id = ? AND date = ?', 
+    cursor.execute('SELECT id, check_in_time, check_out_time, is_late, total_break_time FROM check_in_logs WHERE staff_id = ? AND date = ?', 
                   (user_id, today))
     log = cursor.fetchone()
     
@@ -375,7 +379,6 @@ def dashboard():
                          log=log,
                          today=today,
                          staff_list=staff_list,
-                         qr_code=qr_code,
                          is_late=log[3] if log else False,
                          late_check_ins=late_check_ins,
                          active_break=active_break,
@@ -956,71 +959,6 @@ def export_report():
         if 'conn' in locals():
             conn.close()
 
-@app.route('/qr_check_in/<int:staff_id>')
-def qr_check_in(staff_id):
-    """QR code check-in route with error handling"""
-    today_str = datetime.now().strftime('%Y-%m-%d')
-    now = datetime.now()
-    nine_am_today = now.replace(hour=9, minute=0, second=0, microsecond=0)
-    is_late = now > nine_am_today
-    
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        # Get staff name
-        cursor.execute('SELECT name FROM staff WHERE id = ?', (staff_id,))
-        staff_result = cursor.fetchone()
-        
-        if not staff_result:
-            flash('Invalid staff ID', 'error')
-            return redirect(url_for('dashboard'))
-        
-        staff_name = staff_result['name']
-        
-        # Check if already checked in
-        cursor.execute('''
-            SELECT id FROM check_in_logs 
-            WHERE staff_id = ? AND date = ?
-        ''', (staff_id, today_str))
-        existing_log = cursor.fetchone()
-        
-        if existing_log:
-            flash(f'{staff_name} has already checked in today', 'info')
-        else:
-            # Insert check-in log
-            cursor.execute('''
-                INSERT INTO check_in_logs (staff_id, check_in_time, date, is_late)
-                VALUES (?, ?, ?, ?)
-            ''', (staff_id, now, today_str, is_late))
-            check_in_log_id = cursor.lastrowid
-            
-            # Insert location log
-            client_info = get_client_info()
-            cursor.execute('''
-                INSERT INTO location_logs (check_in_log_id, ip_address, browser, is_mobile)
-                VALUES (?, ?, ?, ?)
-            ''', (
-                check_in_log_id,
-                client_info['ip_address'],
-                client_info['browser'],
-                client_info['is_mobile']
-            ))
-            conn.commit()
-            
-            if is_late:
-                flash(f'LATE CHECK-IN: {staff_name} checked in at {now.strftime("%H:%M:%S")}', 'warning')
-            else:
-                flash(f'Check-in successful for {staff_name}!', 'success')
-        
-    except sqlite3.Error as e:
-        flash(f'Database error: {str(e)}', 'error')
-    finally:
-        if 'conn' in locals():
-            conn.close()
-    
-    return redirect(url_for('dashboard'))
-
 @app.route('/mobile_check_in')
 def mobile_check_in():
     """Mobile-friendly check-in page with error handling"""
@@ -1040,10 +978,11 @@ def mobile_check_in():
             SELECT 
                 l.id,
                 l.staff_id,
-                strftime('%H:%M', l.check_in_time) as check_in_time,
-                strftime('%H:%M', l.check_out_time) as check_out_time,
+                l.check_in_time,
+                l.check_out_time,
                 l.is_late,
-                l.late_reason
+                l.late_reason,
+                l.total_break_time
             FROM check_in_logs l 
             WHERE l.staff_id = ? AND l.date = ?
         ''', (user_id, today))
@@ -1054,7 +993,7 @@ def mobile_check_in():
         if log:
             cursor.execute('''
                 SELECT 
-                    strftime('%H:%M', break_start) as break_start,
+                    break_start,
                     break_type,
                     ROUND((strftime('%s', 'now') - strftime('%s', break_start)) / 60.0) as duration
                 FROM break_logs 
@@ -1063,9 +1002,9 @@ def mobile_check_in():
             active_break = cursor.fetchone()
         
     except sqlite3.Error as e:
-        flash(f'Database error: {str(e)}', 'error')
-        log = None
-        active_break = None
+        logger.error(f'Database error: {str(e)}')
+        flash('An error occurred. Please try again.', 'error')
+        return redirect(url_for('dashboard'))
     finally:
         if 'conn' in locals():
             conn.close()
@@ -1161,8 +1100,8 @@ def end_break():
             active_break = cursor.fetchone()
             
             if active_break:
-                # Calculate break duration
-                break_start = datetime.strptime(active_break['break_start'], '%Y-%m-%d %H:%M:%S.%f')
+                # Calculate break duration - break_start is now a datetime object
+                break_start = active_break['break_start']
                 break_duration = int((now - break_start).total_seconds() / 60)
                 
                 # Update break log
@@ -1191,6 +1130,9 @@ def end_break():
         
     except sqlite3.Error as e:
         flash(f'Database error: {str(e)}', 'error')
+    except Exception as e:
+        logger.error(f"Error ending break: {str(e)}")
+        flash('An error occurred while ending the break', 'error')
     finally:
         if 'conn' in locals():
             conn.close()
@@ -1291,47 +1233,49 @@ def change_password():
     
     return render_template('change_password.html')
 
+@app.route('/favicon.ico')
+def favicon():
+    try:
+        return send_from_directory(
+            os.path.join(app.root_path, 'static'),
+            'favicon.html',
+            mimetype='text/html'
+        )
+    except Exception as e:
+        print(f"Error serving favicon: {str(e)}")
+        return '', 204  # Return empty response if favicon not found
+
+# Ensure templates directory is properly set
+app.template_folder = os.path.join(app.root_path, 'templates')
+
+# Error handlers with proper template paths and logging
 @app.errorhandler(404)
 def not_found_error(error):
+    logger.error(f"404 Error: {error}")
     return render_template('404.html'), 404
 
 @app.errorhandler(500)
 def internal_error(error):
+    logger.error(f"500 Error: {error}")
+    # Log the full traceback
+    logger.error(traceback.format_exc())
     return render_template('500.html'), 500
 
-@app.route('/health')
-def health_check():
-    """Health check endpoint for Render"""
-    try:
-        # Test database connection
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute('SELECT 1')
-        cursor.fetchone()
-        
-        return jsonify({
-            'status': 'healthy',
-            'database': 'connected',
-            'timestamp': datetime.now().isoformat()
-        }), 200
-    except Exception as e:
-        return jsonify({
-            'status': 'unhealthy',
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }), 500
+@app.errorhandler(Exception)
+def handle_exception(error):
+    logger.error(f"Unhandled Exception: {error}")
+    logger.error(traceback.format_exc())
+    return render_template('500.html'), 500
 
 if __name__ == '__main__':
     # Initialize database and create admin user
     try:
-        init_db()
-        create_admin_if_not_exists()
+        with app.app_context():
+            init_db()
+            create_admin_if_not_exists()
     except Exception as e:
         print(f"Startup error: {str(e)}")
         exit(1)
     
-    # Get port from environment variable
-    port = int(os.environ.get('PORT', 5000))
-    
-    # Run the app with proper host and port
-    app.run(host='0.0.0.0', port=port)
+    # Run the app with default Flask development server
+    app.run(host='0.0.0.0', port=8080, debug=True)

@@ -4,32 +4,63 @@
 <div class="container mt-5">
     <div class="row justify-content-center">
         <div class="col-md-6">
-            <div class="card">
+            <div class="card shadow">
                 <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">{% if is_admin %}Register New Staff{% else %}Register{% endif %}</h4>
+                    <h4 class="mb-0">
+                        {% if is_admin %}
+                            Add New Staff Member
+                        {% else %}
+                            Register New Account
+                        {% endif %}
+                    </h4>
                 </div>
                 <div class="card-body">
-                    {% with messages = get_flashed_messages() %}
+                    {% with messages = get_flashed_messages(with_categories=true) %}
                         {% if messages %}
-                            {% for message in messages %}
-                                <div class="alert alert-info">{{ message }}</div>
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
                             {% endfor %}
                         {% endif %}
                     {% endwith %}
-                    
-                    <form method="POST" action="{{ url_for('register') }}">
+
+                    <form method="POST" action="{{ url_for('register') }}" class="needs-validation" novalidate>
                         <div class="mb-3">
                             <label for="name" class="form-label">Full Name</label>
-                            <input type="text" class="form-control" id="name" name="name" required>
+                            <input type="text" class="form-control" id="name" name="name" required 
+                                   pattern="[A-Za-z\s]+" minlength="2" maxlength="50">
+                            <div class="invalid-feedback">
+                                Please enter a valid name (2-50 characters, letters only)
+                            </div>
                         </div>
+
                         <div class="mb-3">
-                            <label for="email" class="form-label">Email</label>
+                            <label for="email" class="form-label">Email Address</label>
                             <input type="email" class="form-control" id="email" name="email" required>
+                            <div class="invalid-feedback">
+                                Please enter a valid email address
+                            </div>
                         </div>
+
                         <div class="mb-3">
                             <label for="password" class="form-label">Password</label>
-                            <input type="password" class="form-control" id="password" name="password" required>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="password" name="password" 
+                                       required pattern="^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$">
+                                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                    <i class="bi bi-eye" id="toggleIcon"></i> Show
+                                </button>
+                            </div>
+                            <div class="form-text">
+                                Password must be at least 8 characters long and contain both letters and numbers
+                            </div>
+                            <div class="invalid-feedback">
+                                Password must meet the requirements above
+                            </div>
                         </div>
+
                         {% if is_admin %}
                         <div class="mb-3">
                             <label for="role" class="form-label">Role</label>
@@ -39,14 +70,73 @@
                             </select>
                         </div>
                         {% endif %}
-                        <button type="submit" class="btn btn-primary">Register</button>
-                        {% if not is_admin %}
-                        <a href="{{ url_for('login') }}" class="btn btn-secondary">Back to Login</a>
-                        {% endif %}
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-person-plus"></i> Register
+                            </button>
+                            {% if not is_admin %}
+                            <a href="{{ url_for('login') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Back to Login
+                            </a>
+                            {% else %}
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Back to Dashboard
+                            </a>
+                            {% endif %}
+                        </div>
                     </form>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Form validation
+    const form = document.querySelector('.needs-validation');
+    form.addEventListener('submit', function(event) {
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        form.classList.add('was-validated');
+    });
+
+    // Password validation
+    const passwordInput = document.getElementById('password');
+    passwordInput.addEventListener('input', function() {
+        const isValid = this.value.match(/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/);
+        if (isValid) {
+            this.setCustomValidity('');
+        } else {
+            this.setCustomValidity('Password must be at least 8 characters long and contain both letters and numbers');
+        }
+    });
+
+    // Name validation
+    const nameInput = document.getElementById('name');
+    nameInput.addEventListener('input', function() {
+        const isValid = this.value.match(/^[A-Za-z\s]{2,50}$/);
+        if (isValid) {
+            this.setCustomValidity('');
+        } else {
+            this.setCustomValidity('Name must be 2-50 characters long and contain only letters');
+        }
+    });
+
+    // Email validation
+    const emailInput = document.getElementById('email');
+    emailInput.addEventListener('input', function() {
+        if (this.validity.typeMismatch) {
+            this.setCustomValidity('Please enter a valid email address');
+        } else {
+            this.setCustomValidity('');
+        }
+    });
+});
+</script>
 {% endblock %}

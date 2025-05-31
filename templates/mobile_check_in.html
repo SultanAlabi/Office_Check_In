@@ -1,212 +1,639 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container-fluid px-3">
-    <div class="row">
-        <div class="col-12">
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">
-                        <i class="fas fa-mobile-alt"></i> Mobile Check-In
-                    </h4>
-                </div>
-                <div class="card-body">
-                    <h5 class="mb-3">Welcome, {{ user_name }}!</h5>
-                    
-                    <!-- Status Card -->
-                    <div class="card mb-4 {% if log and not log[3] %}bg-light{% endif %}">
-                        <div class="card-body">
-                            <h6 class="card-subtitle mb-2 text-muted">Today's Status</h6>
-                            {% if not log %}
-                                <p class="card-text">You haven't checked in yet.</p>
-                                <form action="{{ url_for('check_in') }}" method="POST" class="d-grid">
-                                    <button type="submit" class="btn btn-primary btn-lg">
-                                        <i class="fas fa-sign-in-alt"></i> Check In
-                                    </button>
-                                </form>
-                            {% else %}
-                                <p class="card-text">
-                                    Checked in at: {{ log[2].split(' ')[1] if log[2] else 'N/A' }}
-                                    {% if log[3] %}
-                                        <br>Checked out at: {{ log[3].split(' ')[1] }}
-                                    {% endif %}
-                                </p>
-                                {% if not log[3] %}
-                                    <form action="{{ url_for('check_out') }}" method="POST" class="d-grid">
-                                        <button type="submit" class="btn btn-danger btn-lg">
-                                            <i class="fas fa-sign-out-alt"></i> Check Out
-                                        </button>
-                                    </form>
-                                {% endif %}
-                            {% endif %}
+<div class="mobile-container">
+    <!-- Status Bar -->
+    <div class="status-bar {% if log and log.is_late %}bg-warning{% elif log %}bg-success{% else %}bg-secondary{% endif %}">
+        <div class="status-content">
+            <div class="status-icon">
+                {% if log and log.is_late %}
+                    <i class="bi bi-exclamation-circle"></i>
+                {% elif log %}
+                    <i class="bi bi-check-circle"></i>
+                {% else %}
+                    <i class="bi bi-clock"></i>
+                {% endif %}
+            </div>
+            <div class="status-text">
+                {% if log and log.is_late %}
+                    Late Check-in
+                {% elif log %}
+                    On Time
+                {% else %}
+                    Not Checked In
+                {% endif %}
+            </div>
+            <!-- Theme Toggle Button -->
+            <button id="theme-toggle" class="theme-toggle">
+                <i class="bi bi-moon-fill"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content-wrapper">
+        <!-- Welcome Section -->
+        <div class="welcome-section">
+            <h2>Hi, {{ user_name }}! 👋</h2>
+            <p class="date">{{ today }}</p>
+        </div>
+
+        <!-- Time Card -->
+        <div class="time-card">
+            <div class="time-info">
+                {% if log %}
+                    <div class="time-item">
+                        <i class="bi bi-box-arrow-in-right"></i>
+                        <span>Check In</span>
+                        <strong>{{ log.check_in_time.strftime('%H:%M') if log.check_in_time else 'N/A' }}</strong>
+                    </div>
+                    {% if log.check_out_time %}
+                    <div class="time-item">
+                        <i class="bi bi-box-arrow-left"></i>
+                        <span>Check Out</span>
+                        <strong>{{ log.check_out_time.strftime('%H:%M') if log.check_out_time else 'N/A' }}</strong>
+                    </div>
+                    {% endif %}
+                    {% if active_break %}
+                    <div class="time-item break-active">
+                        <i class="bi bi-cup-hot"></i>
+                        <span>On Break</span>
+                        <strong>{{ active_break.break_type.capitalize() }}</strong>
+                        <small>({{ active_break.duration }} min)</small>
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <div class="time-item pending">
+                        <i class="bi bi-clock-history"></i>
+                        <span>Pending Check In</span>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-section">
+            {% if not log %}
+                <form action="{{ url_for('check_in') }}" method="POST" class="action-form">
+                    <button type="submit" class="btn-action check-in">
+                        <i class="bi bi-box-arrow-in-right"></i>
+                        Check In
+                    </button>
+                </form>
+            {% elif not log.check_out_time %}
+                {% if not active_break %}
+                    <div class="break-controls">
+                        <h6>Start a Break</h6>
+                        <div class="break-options">
+                            <form action="{{ url_for('start_break') }}" method="POST" class="break-form">
+                                <input type="hidden" name="break_type" value="short">
+                                <button type="submit" class="btn-break short">
+                                    <i class="bi bi-cup"></i>
+                                    <span>Short</span>
+                                    <small>15min</small>
+                                </button>
+                            </form>
+                            <form action="{{ url_for('start_break') }}" method="POST" class="break-form">
+                                <input type="hidden" name="break_type" value="regular">
+                                <button type="submit" class="btn-break regular">
+                                    <i class="bi bi-cup-hot"></i>
+                                    <span>Regular</span>
+                                    <small>30min</small>
+                                </button>
+                            </form>
+                            <form action="{{ url_for('start_break') }}" method="POST" class="break-form">
+                                <input type="hidden" name="break_type" value="lunch">
+                                <button type="submit" class="btn-break lunch">
+                                    <i class="bi bi-cup-straw"></i>
+                                    <span>Lunch</span>
+                                    <small>60min</small>
+                                </button>
+                            </form>
                         </div>
                     </div>
-                    
-                    <!-- Break Controls -->
-                    {% if log and not log[3] %}
-                        <div class="card mb-4">
-                            <div class="card-body">
-                                <h6 class="card-subtitle mb-2 text-muted">Break Controls</h6>
-                                {% if not active_break %}
-                                    <div class="quick-break-buttons mb-3">
-                                        <button class="btn btn-outline-primary quick-break-btn" data-duration="15" data-type="short">
-                                            <i class="fas fa-coffee"></i><br>15min
-                                        </button>
-                                        <button class="btn btn-outline-primary quick-break-btn" data-duration="30" data-type="regular">
-                                            <i class="fas fa-utensils"></i><br>30min
-                                        </button>
-                                        <button class="btn btn-outline-primary quick-break-btn" data-duration="60" data-type="lunch">
-                                            <i class="fas fa-hamburger"></i><br>1hour
-                                        </button>
-                                    </div>
-                                    <form action="{{ url_for('start_break') }}" method="POST" id="breakForm">
-                                        <input type="hidden" name="break_type" id="break_type" value="regular">
-                                        <div class="d-grid">
-                                            <button type="submit" class="btn btn-warning btn-lg">
-                                                <i class="fas fa-pause"></i> Start Break
-                                            </button>
-                                        </div>
-                                    </form>
-                                {% else %}
-                                    <p class="text-muted mb-3">
-                                        Break started at {{ active_break[0].split(' ')[1] if active_break[0] else 'N/A' }}
-                                    </p>
-                                    <form action="{{ url_for('end_break') }}" method="POST" class="d-grid">
-                                        <button type="submit" class="btn btn-warning btn-lg">
-                                            <i class="fas fa-play"></i> End Break
-                                        </button>
-                                    </form>
-                                {% endif %}
-                            </div>
-                        </div>
-                    {% endif %}
+                    <form action="{{ url_for('check_out') }}" method="POST" class="action-form">
+                        <button type="submit" class="btn-action check-out">
+                            <i class="bi bi-box-arrow-left"></i>
+                            Check Out
+                        </button>
+                    </form>
+                {% else %}
+                    <form action="{{ url_for('end_break') }}" method="POST" class="action-form">
+                        <button type="submit" class="btn-action end-break">
+                            <i class="bi bi-stop-circle"></i>
+                            End Break
+                        </button>
+                    </form>
+                {% endif %}
+            {% endif %}
+        </div>
+
+        <!-- Summary Section -->
+        {% if log %}
+        <div class="summary-section">
+            <h6>Today's Summary</h6>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <i class="bi bi-clock-history"></i>
+                    <span>Work Hours</span>
+                    <strong>
+                        {% if log.check_out_time %}
+                            {{ ((log.check_out_time - log.check_in_time).total_seconds() / 3600)|round(1) }}h
+                        {% else %}
+                            In Progress
+                        {% endif %}
+                    </strong>
+                </div>
+                <div class="summary-item">
+                    <i class="bi bi-cup"></i>
+                    <span>Break Time</span>
+                    <strong>{{ log.total_break_time if log.total_break_time else 0 }}min</strong>
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 </div>
 
 <style>
-    .quick-break-buttons {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 10px;
-        margin-bottom: 1rem;
+:root {
+    /* Light Theme Variables */
+    --bg-primary: #f8f9fa;
+    --bg-secondary: #ffffff;
+    --text-primary: #212529;
+    --text-secondary: #6c757d;
+    --border-color: #dee2e6;
+    --card-shadow: 0 2px 15px rgba(0,0,0,0.05);
+    --accent-color: #0d6efd;
+    --success-color: #198754;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --info-color: #0dcaf0;
+}
+
+[data-theme="dark"] {
+    /* Dark Theme Variables */
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #2d2d2d;
+    --text-primary: #e9ecef;
+    --text-secondary: #adb5bd;
+    --border-color: #404040;
+    --card-shadow: 0 2px 15px rgba(0,0,0,0.2);
+    --accent-color: #3d8bfd;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --info-color: #17a2b8;
+}
+
+/* Mobile-First Styles */
+.mobile-container {
+    max-width: 600px;
+    margin: 0 auto;
+    background: var(--bg-primary);
+    min-height: 100vh;
+    position: relative;
+    transition: background-color 0.3s ease;
+}
+
+.status-bar {
+    padding: 1rem;
+    color: white;
+    text-align: center;
+    transition: background-color 0.3s;
+}
+
+.status-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    position: relative;
+}
+
+.theme-toggle {
+    position: absolute;
+    right: 0;
+    background: transparent;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 0.5rem;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s ease;
+}
+
+.theme-toggle:hover {
+    transform: scale(1.1);
+}
+
+.status-icon {
+    font-size: 1.5rem;
+}
+
+.content-wrapper {
+    padding: 1.5rem;
+}
+
+.welcome-section {
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.welcome-section h2 {
+    margin: 0;
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.date {
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+}
+
+.time-card {
+    background: var(--bg-secondary);
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 2rem;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.time-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.time-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem;
+    border-radius: 10px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.3s ease;
+}
+
+.time-item i {
+    font-size: 1.2rem;
+    color: var(--accent-color);
+}
+
+.time-item span {
+    flex: 1;
+    color: var(--text-secondary);
+}
+
+.time-item strong {
+    color: var(--text-primary);
+}
+
+.break-active {
+    background: var(--info-color) !important;
+    color: var(--bg-secondary) !important;
+}
+
+.pending {
+    color: var(--text-secondary);
+    text-align: center;
+    justify-content: center;
+}
+
+.action-section {
+    margin-bottom: 2rem;
+}
+
+.action-form {
+    margin-bottom: 1rem;
+}
+
+.btn-action {
+    width: 100%;
+    padding: 1rem;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.btn-action:active {
+    transform: scale(0.98);
+}
+
+.check-in {
+    background: var(--success-color);
+    color: white;
+}
+
+.check-out {
+    background: var(--danger-color);
+    color: white;
+}
+
+.end-break {
+    background: var(--warning-color);
+    color: #000;
+}
+
+.break-controls {
+    margin-bottom: 1rem;
+}
+
+.break-controls h6 {
+    margin-bottom: 1rem;
+    color: var(--text-secondary);
+}
+
+.break-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+}
+
+.btn-break {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 1rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-primary);
+}
+
+.btn-break:hover {
+    border-color: var(--accent-color);
+    background: var(--bg-primary);
+}
+
+.btn-break i {
+    font-size: 1.2rem;
+    color: var(--accent-color);
+}
+
+.btn-break span {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.btn-break small {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.summary-section {
+    background: var(--bg-secondary);
+    border-radius: 15px;
+    padding: 1.5rem;
+    box-shadow: var(--card-shadow);
+}
+
+.summary-section h6 {
+    margin-bottom: 1rem;
+    color: var(--text-secondary);
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.summary-item {
+    text-align: center;
+    padding: 1rem;
+    background: var(--bg-primary);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.summary-item i {
+    font-size: 1.5rem;
+    color: var(--accent-color);
+}
+
+.summary-item span {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.summary-item strong {
+    color: var(--text-primary);
+    font-size: 1.1rem;
+}
+
+/* Status Colors */
+.bg-warning {
+    background: var(--warning-color) !important;
+}
+
+.bg-success {
+    background: var(--success-color) !important;
+}
+
+.bg-secondary {
+    background: var(--text-secondary) !important;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 400px) {
+    .content-wrapper {
+        padding: 1rem;
     }
-    
-    .quick-break-btn {
-        padding: 15px 10px;
-        text-align: center;
-        white-space: nowrap;
+
+    .welcome-section h2 {
+        font-size: 1.5rem;
     }
-    
-    .quick-break-btn i {
-        font-size: 1.2rem;
-        margin-bottom: 5px;
+
+    .break-options {
+        grid-template-columns: 1fr;
     }
-    
-    @media (max-width: 576px) {
-        .quick-break-btn {
-            padding: 10px 5px;
-            font-size: 0.9rem;
-        }
-        
-        .quick-break-btn i {
-            font-size: 1rem;
-        }
+
+    .summary-grid {
+        grid-template-columns: 1fr;
     }
+}
 </style>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-    // Quick break buttons
-    document.querySelectorAll('.quick-break-btn').forEach(button => {
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            const type = this.dataset.type;
-            document.getElementById('break_type').value = type;
-            document.getElementById('breakForm').submit();
+// Theme Management
+const themeToggle = document.getElementById('theme-toggle');
+const themeIcon = themeToggle.querySelector('i');
+
+// Check for saved theme preference
+const savedTheme = localStorage.getItem('theme') || 'light';
+document.documentElement.setAttribute('data-theme', savedTheme);
+updateThemeIcon(savedTheme);
+
+// Theme toggle handler
+themeToggle.addEventListener('click', () => {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme);
+});
+
+function updateThemeIcon(theme) {
+    themeIcon.className = theme === 'light' ? 'bi bi-moon-fill' : 'bi bi-sun-fill';
+}
+
+// Progressive Web App Support
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js')
+        .then(registration => {
+            console.log('Service Worker registered');
+        })
+        .catch(error => {
+            console.error('Service Worker registration failed:', error);
         });
-    });
+}
 
-    // Initialize toast notifications
-    const toastContainer = document.querySelector('.toast-container');
-    if (!toastContainer) {
-        const container = document.createElement('div');
-        container.className = 'toast-container';
-        document.body.appendChild(container);
-    }
+// Offline Support
+let pendingActions = JSON.parse(localStorage.getItem('pendingActions') || '[]');
 
-    // Offline support
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/static/sw.js')
-            .then(function(registration) {
-                console.log('Service Worker registered');
-            })
-            .catch(function(error) {
-                console.log('Service Worker registration failed:', error);
-                showToast('Offline mode may not be available', 'warning');
-            });
-    }
+function syncPendingActions() {
+    if (!navigator.onLine) return;
 
-    // Cache form submissions when offline
-    let pendingActions = JSON.parse(localStorage.getItem('pendingActions') || '[]');
+    const actions = [...pendingActions];
+    pendingActions = [];
+    localStorage.setItem('pendingActions', JSON.stringify(pendingActions));
 
-    function syncPendingActions() {
-        if (!navigator.onLine) return;
-
-        const actions = [...pendingActions];
-        pendingActions = [];
-        localStorage.setItem('pendingActions', JSON.stringify(pendingActions));
-
-        actions.forEach(action => {
-            fetch(action.url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(action.data)
-            }).then(response => {
-                if (response.ok) {
-                    showToast('Synced offline action', 'success');
-                }
-            }).catch(error => {
-                console.error('Sync failed:', error);
-                pendingActions.push(action);
-                localStorage.setItem('pendingActions', JSON.stringify(pendingActions));
-                showToast('Failed to sync action', 'error');
-            });
-        });
-    }
-
-    // Listen for online status
-    window.addEventListener('online', syncPendingActions);
-
-    // Handle form submissions
-    document.querySelectorAll('form').forEach(form => {
-        form.addEventListener('submit', function(e) {
-            if (!navigator.onLine) {
-                e.preventDefault();
-                const formData = new FormData(this);
-                const data = {};
-                formData.forEach((value, key) => data[key] = value);
-                
-                pendingActions.push({
-                    url: this.action,
-                    data: data
-                });
-                localStorage.setItem('pendingActions', JSON.stringify(pendingActions));
-                
-                showToast('Action saved and will be synced when online', 'info');
+    actions.forEach(action => {
+        fetch(action.url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(action.data)
+        }).then(response => {
+            if (response.ok) {
+                showNotification('Synced offline action', 'success');
+                setTimeout(() => window.location.reload(), 1000);
             }
+        }).catch(error => {
+            console.error('Sync failed:', error);
+            pendingActions.push(action);
+            localStorage.setItem('pendingActions', JSON.stringify(pendingActions));
+            showNotification('Failed to sync action', 'error');
         });
     });
+}
 
-    // Initialize
-    if (pendingActions.length > 0) {
-        syncPendingActions();
+// Handle form submissions
+document.querySelectorAll('form').forEach(form => {
+    form.addEventListener('submit', function(e) {
+        if (!navigator.onLine) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const data = {};
+            formData.forEach((value, key) => data[key] = value);
+            
+            pendingActions.push({
+                url: this.action,
+                data: data
+            });
+            localStorage.setItem('pendingActions', JSON.stringify(pendingActions));
+            showNotification('Action saved for sync', 'info');
+        }
+    });
+});
+
+// Notification System
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+        notification.classList.add('show');
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
+    }, 100);
+}
+
+// Listen for online/offline status
+window.addEventListener('online', () => {
+    showNotification('Back online', 'success');
+    syncPendingActions();
+});
+
+window.addEventListener('offline', () => {
+    showNotification('You are offline', 'warning');
+});
+
+// Auto-refresh status (every 5 minutes)
+setInterval(() => {
+    if (navigator.onLine && !document.hidden) {
+        window.location.reload();
     }
+}, 300000);
 </script>
+
+<style>
+/* Notification Styles */
+.notification {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    padding: 12px 24px;
+    border-radius: 8px;
+    background: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.notification.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+.notification.success {
+    background: #d4edda;
+    color: #155724;
+}
+
+.notification.warning {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.notification.error {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.notification.info {
+    background: #cce5ff;
+    color: #004085;
+}
+</style>
 {% endblock %} 

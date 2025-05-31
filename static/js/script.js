@@ -1,5 +1,116 @@
 // Office Check-In System JavaScript
 
+// Global state management
+const AppState = {
+    isOnline: navigator.onLine,
+    pendingActions: [],
+    notifications: [],
+    init() {
+        this.loadPendingActions();
+        this.setupEventListeners();
+    },
+    loadPendingActions() {
+        this.pendingActions = JSON.parse(localStorage.getItem('pendingActions') || '[]');
+    },
+    savePendingActions() {
+        localStorage.setItem('pendingActions', JSON.stringify(this.pendingActions));
+    },
+    addPendingAction(action) {
+        this.pendingActions.push(action);
+        this.savePendingActions();
+    },
+    removePendingAction(actionId) {
+        this.pendingActions = this.pendingActions.filter(a => a.id !== actionId);
+        this.savePendingActions();
+    },
+    setupEventListeners() {
+        window.addEventListener('online', () => {
+            this.isOnline = true;
+            showNotification('Back online', 'success');
+            this.syncPendingActions();
+        });
+
+        window.addEventListener('offline', () => {
+            this.isOnline = false;
+            showNotification('You are offline', 'warning');
+        });
+    }
+};
+
+// Form handling
+document.querySelectorAll('form').forEach(form => {
+    form.addEventListener('submit', function(e) {
+        if (!AppState.isOnline) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const data = {};
+            formData.forEach((value, key) => data[key] = value);
+            
+            AppState.addPendingAction({
+                id: Date.now(),
+                url: this.action,
+                method: this.method,
+                data: data
+            });
+            
+            showNotification('Action saved for sync', 'info');
+        }
+    });
+});
+
+// Notification system
+function showNotification(message, type = 'info', duration = 3000) {
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    
+    const container = document.querySelector('.notification-container') || createNotificationContainer();
+    container.appendChild(notification);
+
+    // Animate in
+    setTimeout(() => notification.classList.add('show'), 100);
+
+    // Animate out
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, duration);
+}
+
+function createNotificationContainer() {
+    const container = document.createElement('div');
+    container.className = 'notification-container';
+    document.body.appendChild(container);
+    return container;
+}
+
+// Loading indicator
+function showLoading(element) {
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner';
+    element.appendChild(spinner);
+    return spinner;
+}
+
+function hideLoading(spinner) {
+    spinner.remove();
+}
+
+// Date and time formatting
+function formatDate(date) {
+    return new Date(date).toLocaleDateString();
+}
+
+function formatTime(date) {
+    return new Date(date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDuration(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Password toggle functionality
     const setupPasswordToggle = function() {
@@ -88,4 +199,25 @@ document.addEventListener('DOMContentLoaded', function() {
         updateClock();
         setInterval(updateClock, 1000);
     }
+
+    // Initialize app
+    AppState.init();
+    
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js')
+            .then(registration => {
+                console.log('Service Worker registered');
+            })
+            .catch(error => {
+                console.error('Service Worker registration failed:', error);
+            });
+    }
+    
+    // Auto-refresh status (every 5 minutes if online and page is visible)
+    setInterval(() => {
+        if (AppState.isOnline && !document.hidden) {
+            window.location.reload();
+        }
+    }, 300000);
 });
