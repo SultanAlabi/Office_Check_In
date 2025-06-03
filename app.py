@@ -601,7 +601,7 @@ def register():
         name = request.form['name']
         email = request.form['email']
         password = request.form['password']
-        hashed_password = generate_password_hash(password)
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
         
         # Only admins can create other admin accounts
         role = request.form['role'] if is_admin else 'staff'
@@ -843,7 +843,7 @@ def create_admin_if_not_exists():
         if admin_count == 0:
             # Use a simple default password: Admin@123
             default_password = 'Admin@123'
-            hashed_password = generate_password_hash(default_password)
+            hashed_password = generate_password_hash(default_password, method='pbkdf2:sha256')
             
             cursor.execute('''
                 INSERT INTO staff (name, email, password, role, created_at) 
@@ -1214,7 +1214,7 @@ def change_password():
                 return redirect(url_for('change_password'))
             
             # Update password
-            new_hash = generate_password_hash(new_password)
+            new_hash = generate_password_hash(new_password, method='pbkdf2:sha256')
             cursor.execute('''
                 UPDATE staff 
                 SET password = ? 
