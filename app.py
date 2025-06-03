@@ -256,25 +256,44 @@ def login():
             cursor.execute('SELECT id, name, role, password FROM staff WHERE email = ?', (email,))
             user = cursor.fetchone()
             
-            if user and check_password_hash(user['password'], password):
-                session['user_id'] = user['id']
-                session['user_name'] = user['name']
-                session['user_role'] = user['role']
-                flash('Login successful!', 'success')
-                
-                # Detect device type and redirect
-                user_agent = request.headers.get('User-Agent', '').lower()
-                is_mobile = 'mobile' in user_agent or 'android' in user_agent or 'iphone' in user_agent
-                
-                if is_mobile:
-                    return redirect(url_for('mobile_check_in'))
-                return redirect(url_for('dashboard'))
+            if user:
+                # Try the new pbkdf2:sha256 method first
+                if check_password_hash(user['password'], password):
+                    session['user_id'] = user['id']
+                    session['user_name'] = user['name']
+                    session['user_role'] = user['role']
+                    flash('Login successful!', 'success')
+                    
+                    # Update user's password to new hashing method if it's using old method
+                    if not user['password'].startswith('pbkdf2:sha256'):
+                        new_hash = generate_password_hash(password, method='pbkdf2:sha256')
+                        cursor.execute('UPDATE staff SET password = ? WHERE id = ?', (new_hash, user['id']))
+                        conn.commit()
+                    
+                    # Detect device type and redirect
+                    user_agent = request.headers.get('User-Agent', '').lower()
+                    is_mobile = 'mobile' in user_agent or 'android' in user_agent or 'iphone' in user_agent
+                    
+                    if is_mobile:
+                        return redirect(url_for('mobile_check_in'))
+                    return redirect(url_for('dashboard'))
+                else:
+                    # If login fails, log the hash method being used
+                    logger.info(f"Login failed for {email}. Hash method: {user['password'].split(':')[0] if ':' in user['password'] else 'unknown'}")
+                    flash('Invalid email or password', 'error')
             else:
                 flash('Invalid email or password', 'error')
-                return redirect(url_for('login'))
+                
+            return redirect(url_for('login'))
                 
         except sqlite3.Error as e:
+            logger.error(f"Database error during login: {str(e)}")
             flash(f'Database error: {str(e)}', 'error')
+            return redirect(url_for('login'))
+        except Exception as e:
+            logger.error(f"Unexpected error during login: {str(e)}")
+            logger.error(traceback.format_exc())
+            flash('An unexpected error occurred. Please try again.', 'error')
             return redirect(url_for('login'))
         finally:
             if 'conn' in locals():
@@ -843,7 +862,7 @@ def create_admin_if_not_exists():
         if admin_count == 0:
             # Use a simple default password: Admin@123
             default_password = 'Admin@123'
-            hashed_password = generate_password_hash(default_password, method='pbkdf2:sha256')
+            hashed_password = generate_password_hash(default_password, method='pbkdf2:sha256', salt_length=16)
             
             cursor.execute('''
                 INSERT INTO staff (name, email, password, role, created_at) 
@@ -1173,10 +1192,26 @@ def location_history():
             ORDER BY l.check_in_time DESC
         ''', (date_filter,))
         
-        location_logs = cursor.fetchall()
+        # Convert datetime objects to strings
+        location_logs = []
+        for row in cursor.fetchall():
+            location_logs.append({
+                'name': row[0],
+                'check_in_time': row[1].strftime('%Y-%m-%d %H:%M:%S') if row[1] else 'N/A',
+                'ip_address': row[2],
+                'browser': row[3],
+                'is_mobile': row[4],
+                'created_at': row[5].strftime('%Y-%m-%d %H:%M:%S') if row[5] else 'N/A'
+            })
         
     except sqlite3.Error as e:
+        logger.error(f'Database error in location_history: {str(e)}')
         flash(f'Database error: {str(e)}', 'error')
+        location_logs = []
+    except Exception as e:
+        logger.error(f'Unexpected error in location_history: {str(e)}')
+        logger.error(traceback.format_exc())
+        flash('An unexpected error occurred', 'error')
         location_logs = []
     finally:
         if 'conn' in locals():

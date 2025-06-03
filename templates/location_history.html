@@ -1,109 +1,51 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="container">
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">Location History</h4>
-                    <form class="d-flex align-items-center">
-                        <input type="date" class="form-control" name="date" value="{{ selected_date }}" onchange="this.form.submit()">
-                    </form>
-                </div>
-                <div class="card-body">
-                    {% if logs %}
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Staff Name</th>
-                                        <th>Check-In Time</th>
-                                        <th>Device Type</th>
-                                        <th>IP Address</th>
-                                        <th>Browser</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for log in logs %}
-                                        <tr>
-                                            <td>{{ log[0] }}</td>
-                                            <td>{{ log[1].split(' ')[1] if log[1] else 'N/A' }}</td>
-                                            <td>
-                                                {% if log[4] %}
-                                                    <span class="badge bg-info">
-                                                        <i class="fas fa-mobile-alt"></i> Mobile
-                                                    </span>
-                                                {% else %}
-                                                    <span class="badge bg-secondary">
-                                                        <i class="fas fa-desktop"></i> Desktop
-                                                    </span>
-                                                {% endif %}
-                                            </td>
-                                            <td>
-                                                <span class="text-monospace">{{ log[2] }}</span>
-                                            </td>
-                                            <td>
-                                                <small class="text-muted">{{ log[3][:50] + '...' if log[3] and log[3]|length > 50 else log[3] }}</small>
-                                            </td>
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% else %}
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i> No location history found for {{ selected_date }}
-                        </div>
-                    {% endif %}
+<div class="container mt-4">
+    <h2>Location History</h2>
+    
+    <!-- Date Filter -->
+    <form method="get" class="mb-4">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <input type="date" name="date" class="form-control" value="{{ selected_date }}" required>
+                    <button type="submit" class="btn btn-primary">Filter</button>
                 </div>
             </div>
         </div>
+    </form>
+
+    <!-- Location History Table -->
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Staff Name</th>
+                    <th>Check-in Time</th>
+                    <th>IP Address</th>
+                    <th>Browser</th>
+                    <th>Device Type</th>
+                    <th>Created At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.name }}</td>
+                    <td>{{ log.check_in_time }}</td>
+                    <td>{{ log.ip_address }}</td>
+                    <td>{{ log.browser }}</td>
+                    <td>{{ 'Mobile' if log.is_mobile else 'Desktop' }}</td>
+                    <td>{{ log.created_at }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center">No location history found for this date.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
-
-<style>
-    .table td {
-        vertical-align: middle;
-    }
-    
-    .text-monospace {
-        font-family: monospace;
-        background: #f8f9fa;
-        padding: 2px 4px;
-        border-radius: 4px;
-    }
-    
-    @media (max-width: 768px) {
-        .card-header {
-            flex-direction: column;
-            gap: 1rem;
-        }
-        
-        .card-header form {
-            width: 100%;
-        }
-        
-        .card-header input {
-            width: 100%;
-        }
-        
-        .table {
-            font-size: 0.9rem;
-        }
-    }
-</style>
-
-{% block scripts %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Set default date to today if not specified
-        const dateInput = document.querySelector('input[type="date"]');
-        if (!dateInput.value) {
-            const today = new Date().toISOString().split('T')[0];
-            dateInput.value = today;
-        }
-    });
-</script>
-{% endblock %}
 {% endblock %} 
