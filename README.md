@@ -53,7 +53,6 @@ The server will start at `http://localhost:8080`
 After first run, use these credentials to log in:
 - Email: admin@example.com
 - Password: Admin@123
-
 **Important**: Change the admin password immediately after first login!
 
 ## Features in Detail
